@@ -1,0 +1,38 @@
+# IDE
+.idea/*
+!.idea/codeStyles
+!.idea/runConfigurations
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.history/
+*.vsix
+xcuserdata/
+
+# Go
+vendor/
+tmp/
+temp/
+*.local.*
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.pem
+*.log
+
+# mx-flow ephemeral state
+.mx/
