@@ -32,6 +32,10 @@ func TestErrorStackTrace(t *testing.T) {
 	f := ecszap.ErrorStackTrace([]byte("goroutine 1"))
 	assert.Equal(t, "error.stack_trace", f.Key)
 	assert.Equal(t, zapcore.ByteStringType, f.Type)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, "goroutine 1", enc.Fields["error.stack_trace"])
 }
 
 func TestErrorCode(t *testing.T) {
@@ -99,6 +103,9 @@ func TestErr_StackTracer_EmitsStackTrace(t *testing.T) {
 			assert.Equal(t, "kaboom", f.String)
 		case "error.stack_trace":
 			assert.Equal(t, zapcore.ByteStringType, f.Type)
+			enc := zapcore.NewMapObjectEncoder()
+			f.AddTo(enc)
+			assert.Equal(t, "goroutine 1...", enc.Fields["error.stack_trace"])
 		}
 	}
 }

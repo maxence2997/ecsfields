@@ -29,10 +29,18 @@ func TestTags_Single(t *testing.T) {
 	assert.Equal(t, "tags", f.Key)
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
 	assert.NotNil(t, f.Interface)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, []interface{}{"auth", "critical"}, enc.Fields["tags"])
 }
 
 func TestTags_Empty(t *testing.T) {
 	f := ecszap.Tags()
 	assert.Equal(t, "tags", f.Key)
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Empty(t, enc.Fields["tags"])
 }

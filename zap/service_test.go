@@ -43,4 +43,8 @@ func TestServiceNodeRoles(t *testing.T) {
 	assert.Equal(t, "service.node.roles", f.Key)
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
 	assert.NotNil(t, f.Interface)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, []interface{}{"primary", "voting"}, enc.Fields["service.node.roles"])
 }

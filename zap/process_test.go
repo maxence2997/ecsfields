@@ -38,6 +38,10 @@ func TestProcessArgs(t *testing.T) {
 	f := ecszap.ProcessArgs("/bin/sh", "-c", "echo hi")
 	assert.Equal(t, "process.args", f.Key)
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, []interface{}{"/bin/sh", "-c", "echo hi"}, enc.Fields["process.args"])
 }
 
 func TestProcessArgsCount(t *testing.T) {
@@ -66,6 +70,10 @@ func TestProcessStart(t *testing.T) {
 	f := ecszap.ProcessStart(now)
 	assert.Equal(t, "process.start", f.Key)
 	assert.Equal(t, zapcore.TimeType, f.Type)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, now, enc.Fields["process.start"])
 }
 
 func TestProcessUptime_Seconds(t *testing.T) {

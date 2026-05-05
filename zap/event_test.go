@@ -47,9 +47,14 @@ func TestEventDuration_Nanoseconds(t *testing.T) {
 }
 
 func TestEventOriginal_ByteString(t *testing.T) {
-	f := ecszap.EventOriginal([]byte(`{"x":1}`))
+	payload := []byte(`{"x":1}`)
+	f := ecszap.EventOriginal(payload)
 	assert.Equal(t, "event.original", f.Key)
 	assert.Equal(t, zapcore.ByteStringType, f.Type)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, string(payload), enc.Fields["event.original"])
 }
 
 func TestEvent_TimeFields(t *testing.T) {
@@ -68,6 +73,10 @@ func TestEvent_TimeFields(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.wantKey, tc.field.Key)
 			assert.Equal(t, zapcore.TimeType, tc.field.Type)
+
+			enc := zapcore.NewMapObjectEncoder()
+			tc.field.AddTo(enc)
+			assert.Equal(t, now, enc.Fields[tc.wantKey])
 		})
 	}
 }
@@ -130,6 +139,10 @@ func TestEventCategory_TypedArray(t *testing.T) {
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
 	assert.Equal(t, "authentication", string(ecszap.EventCategoryAuthentication))
 	assert.Equal(t, "web", string(ecszap.EventCategoryWeb))
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, []interface{}{"authentication", "web"}, enc.Fields["event.category"])
 }
 
 func TestEventType_TypedArray(t *testing.T) {
@@ -138,4 +151,8 @@ func TestEventType_TypedArray(t *testing.T) {
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
 	assert.Equal(t, "start", string(ecszap.EventTypeStart))
 	assert.Equal(t, "end", string(ecszap.EventTypeEnd))
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, []interface{}{"start", "end"}, enc.Fields["event.type"])
 }

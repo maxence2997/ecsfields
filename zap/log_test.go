@@ -36,6 +36,10 @@ func TestLogOriginal(t *testing.T) {
 	f := ecszap.LogOriginal([]byte("raw log line"))
 	assert.Equal(t, "log.original", f.Key)
 	assert.Equal(t, zapcore.ByteStringType, f.Type)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, "raw log line", enc.Fields["log.original"])
 }
 
 func TestLogOriginFileLine(t *testing.T) {

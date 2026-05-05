@@ -40,12 +40,20 @@ func TestHostIP(t *testing.T) {
 	assert.Equal(t, "host.ip", f.Key)
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
 	assert.NotNil(t, f.Interface)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, []interface{}{"10.0.0.1", "fe80::1"}, enc.Fields["host.ip"])
 }
 
 func TestHostMAC(t *testing.T) {
 	f := ecszap.HostMAC("00-1B-44-11-3A-B7")
 	assert.Equal(t, "host.mac", f.Key)
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
+
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	assert.Equal(t, []interface{}{"00-1B-44-11-3A-B7"}, enc.Fields["host.mac"])
 }
 
 func TestHostUptime_Seconds(t *testing.T) {
