@@ -39,7 +39,7 @@ See [`example/main.go`](example/main.go) for a runnable end-to-end example.
 
 ## Coverage
 
-v0.1.0 covers ~115 helpers across these top-level ECS fieldsets:
+v0.1.0 covers ~116 helpers across these top-level ECS fieldsets:
 
 | Fieldset                             | Helpers            | Notes                                         |
 | ------------------------------------ | ------------------ | --------------------------------------------- |
@@ -51,7 +51,7 @@ v0.1.0 covers ~115 helpers across these top-level ECS fieldsets:
 | `log.*` (+ origin)                   | 6                  | syslog deferred                               |
 | `trace` / `span` / `transaction` ids | 3                  | full                                          |
 | `http.*`                             | 13                 | full                                          |
-| `url.*`                              | 14                 | full                                          |
+| `url.*`                              | 15                 | full                                          |
 | `client.*`                           | 8                  | top-level; NIDS / nat deferred                |
 | `server.*`                           | 8                  | top-level; NIDS / nat deferred                |
 | `user_agent.*`                       | 4                  | full                                          |

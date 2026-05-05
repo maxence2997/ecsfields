@@ -47,3 +47,10 @@ func TestURLPort(t *testing.T) {
 	assert.Equal(t, zapcore.Int64Type, f.Type)
 	assert.Equal(t, int64(443), f.Integer)
 }
+
+func TestURLPasswordRedacted(t *testing.T) {
+	f := ecszap.URLPasswordRedacted()
+	assert.Equal(t, "url.password", f.Key)
+	assert.Equal(t, zapcore.StringType, f.Type)
+	assert.Equal(t, "***", f.String)
+}

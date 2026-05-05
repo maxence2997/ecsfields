@@ -32,8 +32,8 @@ func ErrorCode(code string) zapcore.Field { return zap.String("error.code", code
 // ErrorID emits ECS error.id (a unique identifier for the error instance).
 func ErrorID(id string) zapcore.Field { return zap.String("error.id", id) }
 
-// stackTracer is the conventional interface exposed by error libraries
-// (e.g. pkg/errors, samber/oops) that carry a captured stack.
+// stackTracer is the conventional interface for errors that carry a captured stack.
+// samber/oops satisfies this interface natively.
 type stackTracer interface {
 	StackTrace() []byte
 }
@@ -42,7 +42,7 @@ type stackTracer interface {
 //
 //   - error.message: always (err.Error())
 //   - error.type:    always (fmt.Sprintf("%T", err))
-//   - error.stack_trace: if any error in the chain implements StackTracer
+//   - error.stack_trace: if any error in the chain implements interface{ StackTrace() []byte }
 //
 // The StackTrace method must have signature: StackTrace() []byte.
 // Note: github.com/pkg/errors exposes StackTrace() errors.StackTrace ([]uintptr)

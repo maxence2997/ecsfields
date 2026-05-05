@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	logger, _ := zap.NewProduction()
+	logger := zap.Must(zap.NewProduction())
 	defer func() { _ = logger.Sync() }()
 
 	start := time.Now().Add(-150 * time.Millisecond)

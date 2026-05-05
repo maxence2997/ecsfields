@@ -16,11 +16,11 @@ covered, deferred, or out of scope.
 | `log.*`                                 | 6        | Includes `log.origin.*`                                                                                                               |
 | `trace.id`, `span.id`, `transaction.id` | 3        | APM correlation                                                                                                                       |
 | `http.*`                                | 13       | Bytes are `int64`, status code is `int`                                                                                               |
-| `url.*`                                 | 14       | `URLPort` is the only numeric field                                                                                                   |
+| `url.*`                                 | 15       | `URLPort` is the only numeric field; `URLPasswordRedacted` always emits `***`                                                         |
 | `client.*` (top-level)                  | 8        | Excludes network-monitoring subtrees                                                                                                  |
 | `server.*` (top-level)                  | 8        | Mirrors `client.*`                                                                                                                    |
 | `user_agent.*`                          | 4        | `original`, `name`, `version`, `device.name`                                                                                          |
-| **Total**                               | **~115** |                                                                                                                                       |
+| **Total**                               | **~116** |                                                                                                                                       |
 
 ## Deferred (additive in future v1.x)
 
