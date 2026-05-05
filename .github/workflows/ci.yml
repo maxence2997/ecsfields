@@ -50,5 +50,4 @@ jobs:
         with:
           version: v2.11.2
       - name: test
-        run: go test -v -race -count=${{ env.TEST_COUNT }} -timeout ${{ env.TEST_TIMEOUT
-          }} ./...
+        run: go test -v -race -count=${{ env.TEST_COUNT }} -timeout ${{ env.TEST_TIMEOUT }} ./...

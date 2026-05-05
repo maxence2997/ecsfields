@@ -44,8 +44,9 @@ type stackTracer interface {
 //   - error.type:    always (fmt.Sprintf("%T", err))
 //   - error.stack_trace: if any error in the chain implements StackTracer
 //
-// The StackTrace method is satisfied by e.g. github.com/pkg/errors
-// (via errors.WithStack) and github.com/samber/oops.
+// The StackTrace method must have signature: StackTrace() []byte.
+// Note: github.com/pkg/errors exposes StackTrace() errors.StackTrace ([]uintptr)
+// and does NOT satisfy this interface. Use a wrapper or samber/oops instead.
 //
 // Err is the only multi-field constructor in the library, provided so callers
 // do not need any specific zap encoder (e.g. ecszap) to obtain a stack trace.

@@ -44,5 +44,5 @@ func HostType(v string) zapcore.Field { return zap.String("host.type", v) }
 
 // HostUptime emits ECS host.uptime as seconds since boot.
 func HostUptime(d time.Duration) zapcore.Field {
-	return zap.Int64("host.uptime", int64(d.Seconds()))
+	return zap.Int64("host.uptime", int64(d/time.Second))
 }

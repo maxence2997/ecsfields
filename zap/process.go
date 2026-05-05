@@ -50,7 +50,7 @@ func ProcessTitle(v string) zapcore.Field { return zap.String("process.title", v
 
 // ProcessUptime emits ECS process.uptime as seconds.
 func ProcessUptime(d time.Duration) zapcore.Field {
-	return zap.Int64("process.uptime", int64(d.Seconds()))
+	return zap.Int64("process.uptime", int64(d/time.Second))
 }
 
 // ProcessWorkingDirectory emits ECS process.working_directory.

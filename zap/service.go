@@ -1,7 +1,7 @@
 // service.go — ECS service.* top-level fields.
 //
 // ECS reference (8.17): https://www.elastic.co/guide/en/ecs/8.17/ecs-service.html
-// Source YAML:          https://github.com/elastic/ecs/blob/v8.17.0/generated/csv/fields.csv
+// Source CSV:           https://github.com/elastic/ecs/blob/v8.17.0/generated/csv/fields.csv
 //
 // All service.* fields are keyword in ECS, except service.node.roles which is
 // a keyword array.
