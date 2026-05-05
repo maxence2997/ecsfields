@@ -23,18 +23,18 @@ applyTo: "**"
 
 ## Type Definitions
 
-| Type       | When to use                                                                    |
-| ---------- | ------------------------------------------------------------------------------ |
-| `feat`     | New code for a new feature, support method, or interface                       |
-| `fix`      | Fix a bug or incorrect behavior                                                |
-| `refactor` | Restructure code for readability or maintainability without changing behavior  |
-| `doc`      | Documentation-only or comment-only changes                                     |
-| `style`    | Code formatting, parameter reordering, or other non-functional changes         |
-| `test`     | Add or modify tests (unit, integration, test fixtures)                         |
-| `chore`    | Dependency upgrades, tooling changes, or build configuration                   |
-| `revert`   | Revert one or more previous commits                                            |
-| `merge`    | Merge operations                                                               |
-| `sync`     | Resolve conflicts between branches                                             |
+| Type       | When to use                                                                   |
+| ---------- | ----------------------------------------------------------------------------- |
+| `feat`     | New code for a new feature, support method, or interface                      |
+| `fix`      | Fix a bug or incorrect behavior                                               |
+| `refactor` | Restructure code for readability or maintainability without changing behavior |
+| `doc`      | Documentation-only or comment-only changes                                    |
+| `style`    | Code formatting, parameter reordering, or other non-functional changes        |
+| `test`     | Add or modify tests (unit, integration, test fixtures)                        |
+| `chore`    | Dependency upgrades, tooling changes, or build configuration                  |
+| `revert`   | Revert one or more previous commits                                           |
+| `merge`    | Merge operations                                                              |
+| `sync`     | Resolve conflicts between branches                                            |
 
 ---
 

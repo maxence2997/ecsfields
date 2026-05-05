@@ -16,10 +16,10 @@ ECS schema version pinned: **8.17**.
 
 ## Package Layout
 
-| Path | Description |
-|------|-------------|
+| Path       | Description                                             |
+| ---------- | ------------------------------------------------------- |
 | `.` (root) | Namespace package. `doc.go` only — no exported symbols. |
-| `zap/` | `zap.Field` constructors for ECS 8.17 fields. |
+| `zap/`     | `zap.Field` constructors for ECS 8.17 fields.           |
 
 Import the sub-package directly:
 
@@ -29,22 +29,22 @@ import ecszap "github.com/maxence2997/ecsfields/zap"
 
 ## File Index (zap/)
 
-| File | Contents |
-|------|----------|
-| `doc.go` | Sub-package GoDoc |
-| `service.go` / `service_test.go` | `service.*` constructors |
-| `host.go` / `host_test.go` | `host.*` top-level constructors |
-| `process.go` / `process_test.go` | `process.*` top-level constructors |
-| `event.go` / `event_test.go` | `event.*` constructors and typed enums |
-| `error.go` / `error_test.go` | `error.*` constructors and `Err()` helper |
-| `log.go` / `log_test.go` | `log.*` and `log.origin.*` constructors |
-| `trace.go` / `trace_test.go` | `trace.id`, `span.id`, `transaction.id` |
-| `http.go` / `http_test.go` | `http.*` request and response fields |
-| `url.go` / `url_test.go` | `url.*` constructors |
-| `client.go` / `client_test.go` | `client.*` top-level constructors |
-| `server.go` / `server_test.go` | `server.*` top-level constructors |
-| `user_agent.go` / `user_agent_test.go` | `user_agent.*` constructors |
-| `labels.go` / `labels_test.go` | `Label`, `NumericLabel`, `Tags` escape hatches |
+| File                                   | Contents                                       |
+| -------------------------------------- | ---------------------------------------------- |
+| `doc.go`                               | Sub-package GoDoc                              |
+| `service.go` / `service_test.go`       | `service.*` constructors                       |
+| `host.go` / `host_test.go`             | `host.*` top-level constructors                |
+| `process.go` / `process_test.go`       | `process.*` top-level constructors             |
+| `event.go` / `event_test.go`           | `event.*` constructors and typed enums         |
+| `error.go` / `error_test.go`           | `error.*` constructors and `Err()` helper      |
+| `log.go` / `log_test.go`               | `log.*` and `log.origin.*` constructors        |
+| `trace.go` / `trace_test.go`           | `trace.id`, `span.id`, `transaction.id`        |
+| `http.go` / `http_test.go`             | `http.*` request and response fields           |
+| `url.go` / `url_test.go`               | `url.*` constructors                           |
+| `client.go` / `client_test.go`         | `client.*` top-level constructors              |
+| `server.go` / `server_test.go`         | `server.*` top-level constructors              |
+| `user_agent.go` / `user_agent_test.go` | `user_agent.*` constructors                    |
+| `labels.go` / `labels_test.go`         | `Label`, `NumericLabel`, `Tags` escape hatches |
 
 ## Development Workflow
 
