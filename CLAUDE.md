@@ -24,8 +24,11 @@ ECS schema version pinned: **8.17**.
 Import the sub-package directly:
 
 ```go
-import ecszap "github.com/maxence2997/ecsfields/zap"
+import ecsf "github.com/maxence2997/ecsfields/zap"
 ```
+
+The recommended import alias is `ecsf` (not `ecszap`) to avoid visual collision
+with `go.elastic.co/ecszap`, which is a different library users may also import.
 
 ## File Index (zap/)
 

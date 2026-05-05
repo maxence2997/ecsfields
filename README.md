@@ -9,6 +9,38 @@ non-compliance impossible by construction. Every constructor is hand-written, on
 and pinned to **ECS 8.17**. v0.1.0 ships a single sub-package — `zap` — that returns
 `zap.Field` values with the correct ECS key and value type.
 
+## Why ecsfields
+
+Without ecsfields, ECS-compliant zap logs look like this:
+
+```go
+logger.Info("user signed in",
+    zap.String("service.name", "auth-api"),
+    zap.String("serivce.version", "1.2.3"),     // typo? compiles fine. silently dropped at ingest.
+    zap.String("event.action", "user.login"),
+    zap.String("event.outcome", "succes"),      // wrong enum value? compiles fine.
+    zap.Int64("event.duration", int64(d)),      // ECS wants nanoseconds — easy to pass ms by mistake.
+)
+```
+
+With ecsfields:
+
+```go
+import ecsf "github.com/maxence2997/ecsfields/zap"
+
+logger.Info("user signed in",
+    ecsf.ServiceName("auth-api"),
+    ecsf.ServiceVersion("1.2.3"),                  // typed key — typos become compile errors.
+    ecsf.EventAction("user.login"),
+    ecsf.EventOutcome(ecsf.EventOutcomeSuccess),   // typed enum — compile-checked.
+    ecsf.EventDuration(d),                         // takes time.Duration; emits ns automatically.
+)
+```
+
+Every key is a typed function. Every value goes through a constructor that knows
+the ECS-required type. Typos, wrong enum values, and unit mismatches become
+compile errors instead of silent ingestion failures.
+
 ## Install
 
 ```bash
@@ -17,23 +49,36 @@ go get github.com/maxence2997/ecsfields/zap
 
 ## Quick start
 
+Recommended setup pairs ecszap (envelope) with ecsfields (user fields):
+
 ```go
 import (
+    "os"
+
+    "go.elastic.co/ecszap"
     "go.uber.org/zap"
 
-    ecszap "github.com/maxence2997/ecsfields/zap"
+    ecsf "github.com/maxence2997/ecsfields/zap"
 )
 
-logger, _ := zap.NewProduction()
+encoderConfig := ecszap.NewDefaultEncoderConfig()
+core := ecszap.NewCore(encoderConfig, os.Stdout, zap.InfoLevel)
+logger := zap.New(core, zap.AddCaller())
+
 logger.Info("user signed in",
-    ecszap.ServiceName("auth-api"),
-    ecszap.EventAction("user.login"),
-    ecszap.EventOutcome(ecszap.EventOutcomeSuccess),
-    ecszap.URLPath("/v1/login"),
-    ecszap.HTTPRequestMethod("POST"),
-    ecszap.HTTPResponseStatusCode(200),
+    ecsf.ServiceName("auth-api"),
+    ecsf.EventAction("user.login"),
+    ecsf.EventOutcome(ecsf.EventOutcomeSuccess),
+    ecsf.URLPath("/v1/login"),
+    ecsf.HTTPRequestMethod("POST"),
+    ecsf.HTTPResponseStatusCode(200),
 )
 ```
+
+Don't want ecszap? Replace the encoder/core/logger lines above with
+`logger, _ := zap.NewProduction()`. ecsfields still works on its own — only
+the envelope keys (`level`, `ts`, `msg`) will fall back to zap's defaults
+instead of ECS-compliant names.
 
 See [`example/main.go`](example/main.go) for a runnable end-to-end example.
 
@@ -69,11 +114,11 @@ fields (`numeric_labels.*`, `service.address`, `service.ephemeral_id`, etc.).
 
 ## Relationship to other libraries
 
-| Library                                                                 | Role                                           | ecsfields relationship                                                                                                                       |
-| ----------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`go.elastic.co/ecszap`](https://github.com/elastic/ecs-logging-go-zap) | zap encoder that maps standard zap keys to ECS | Complementary. Use `ecszap.NewProductionEncoderConfig` for the encoder; use ecsfields for the field keys. ecsfields does not require ecszap. |
-| [`github.com/elastic/ecs`](https://github.com/elastic/ecs)              | ECS document marshaling                        | Different concern (full document construction).                                                                                              |
-| [`github.com/andrewkroh/go-ecs`](https://github.com/andrewkroh/go-ecs)  | ECS schema query                               | Different concern (schema introspection).                                                                                                    |
+| Library                                                                 | What it does                                                                                                                                 | How it relates to ecsfields                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`go.elastic.co/ecszap`](https://github.com/elastic/ecs-logging-go-zap) | zap encoder. Renames zap's built-in keys (`level` → `log.level`, `msg` → `message`, `ts` → `@timestamp`) and formats stack traces ECS-style. | **Use both — they cover different parts of the log.** ecszap fixes what zap auto-emits (`level`, `ts`, `msg`, `caller`, `stacktrace`). ecsfields gives you typed constructors for every field you add yourself. |
+| [`github.com/elastic/ecs`](https://github.com/elastic/ecs)              | Canonical ECS schema definitions and document marshaling for full-document construction.                                                     | Different concern. ecsfields is for incremental field-by-field logging in zap, not for building complete ECS documents.                                                                                                                                                                                                          |
+| [`github.com/andrewkroh/go-ecs`](https://github.com/andrewkroh/go-ecs)  | ECS schema query and introspection tool.                                                                                                     | Different concern (schema introspection at runtime, not log emission).                                                                                                                                                                                                                                                           |
 
 ## License
 

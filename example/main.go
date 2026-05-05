@@ -1,52 +1,62 @@
-// example/main.go — runnable demo that emits an ECS-shaped log line using
-// ecsfields and the standard zap JSON encoder.
+// example/main.go — runnable demo of the recommended pattern: pair
+// go.elastic.co/ecszap (envelope: level / ts / msg / caller / stacktrace)
+// with ecsfields (typed user-added fields) for end-to-end ECS compliance.
+//
+// Want a minimal demo without ecszap? Replace the encoder/core/logger lines
+// in main() with `logger := zap.Must(zap.NewProduction())`. ecsfields still
+// works on its own — only the envelope keys (level/ts/msg) will fall back to
+// zap's defaults instead of ECS-compliant names.
 
 package main
 
 import (
 	"errors"
+	"os"
 	"time"
 
+	"go.elastic.co/ecszap"
 	"go.uber.org/zap"
 
-	ecszap "github.com/maxence2997/ecsfields/zap"
+	ecsf "github.com/maxence2997/ecsfields/zap"
 )
 
 func main() {
-	logger := zap.Must(zap.NewProduction())
+	encoderConfig := ecszap.NewDefaultEncoderConfig()
+	core := ecszap.NewCore(encoderConfig, os.Stdout, zap.InfoLevel)
+	logger := zap.New(core, zap.AddCaller())
 	defer func() { _ = logger.Sync() }()
 
 	start := time.Now().Add(-150 * time.Millisecond)
 	err := errors.New("token expired")
 
 	fields := []zap.Field{
-		ecszap.ServiceName("auth-api"),
-		ecszap.ServiceVersion("1.4.2"),
-		ecszap.ServiceEnvironment("production"),
+		ecsf.ServiceName("auth-api"),
+		ecsf.ServiceVersion("1.4.2"),
+		ecsf.ServiceEnvironment("production"),
 
-		ecszap.HostName("auth-api-7c9d"),
+		ecsf.HostName("auth-api-7c9d"),
 
-		ecszap.EventKind(ecszap.EventKindEvent),
-		ecszap.EventCategory(ecszap.EventCategoryAuthentication),
-		ecszap.EventType(ecszap.EventTypeStart, ecszap.EventTypeEnd),
-		ecszap.EventOutcome(ecszap.EventOutcomeFailure),
-		ecszap.EventAction("user.login"),
-		ecszap.EventDuration(time.Since(start)),
+		ecsf.EventKind(ecsf.EventKindEvent),
+		ecsf.EventCategory(ecsf.EventCategoryAuthentication),
+		ecsf.EventType(ecsf.EventTypeStart, ecsf.EventTypeEnd),
+		ecsf.EventOutcome(ecsf.EventOutcomeFailure),
+		ecsf.EventAction("user.login"),
+		ecsf.EventDuration(time.Since(start)),
 
-		ecszap.HTTPRequestMethod("POST"),
-		ecszap.HTTPResponseStatusCode(401),
-		ecszap.URLPath("/api/v1/login"),
-		ecszap.URLDomain("auth.example.com"),
-		ecszap.ClientIP("203.0.113.7"),
-		ecszap.UserAgentOriginal("Mozilla/5.0"),
+		ecsf.HTTPRequestMethod("POST"),
+		ecsf.HTTPResponseStatusCode(401),
+		ecsf.URLPath("/api/v1/login"),
+		ecsf.URLDomain("auth.example.com"),
+		ecsf.ClientIP("203.0.113.7"),
+		ecsf.UserAgentOriginal("Mozilla/5.0"),
 
-		ecszap.TraceID("0af7651916cd43dd8448eb211c80319c"),
-		ecszap.SpanID("b7ad6b7169203331"),
+		ecsf.TraceID("0af7651916cd43dd8448eb211c80319c"),
+		ecsf.SpanID("b7ad6b7169203331"),
 
-		ecszap.Label("tenant", "acme"),
-		ecszap.Tags("login", "audit"),
+		ecsf.Label("tenant", "acme"),
+		ecsf.Tags("login", "audit"),
 	}
-	fields = append(fields, ecszap.Err(err)...)
+	fields = append(fields, ecsf.Err(err)...)
 
 	logger.Info("login attempt failed", fields...)
 }
