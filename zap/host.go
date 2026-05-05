@@ -30,7 +30,7 @@ func HostHostname(v string) zapcore.Field { return zap.String("host.hostname", v
 // HostID emits ECS host.id (a unique identifier for the host).
 func HostID(v string) zapcore.Field { return zap.String("host.id", v) }
 
-// HostIP emits ECS host.ip as a keyword array of IP addresses.
+// HostIP emits ECS host.ip as an array of IP address strings.
 func HostIP(ips ...string) zapcore.Field { return zap.Strings("host.ip", ips) }
 
 // HostMAC emits ECS host.mac as a keyword array of MAC addresses.
