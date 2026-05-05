@@ -46,7 +46,14 @@ func URLFragment(v string) zapcore.Field { return zap.String("url.fragment", v) 
 func URLUsername(v string) zapcore.Field { return zap.String("url.username", v) }
 
 // URLPassword emits ECS url.password.
+//
+// WARNING: This field contains credentials. In production, redact the value
+// before logging, or use URLPasswordRedacted to always emit "***".
 func URLPassword(v string) zapcore.Field { return zap.String("url.password", v) }
+
+// URLPasswordRedacted emits url.password as a fixed redaction marker ("***").
+// Prefer this over URLPassword when the credential must not appear in logs.
+func URLPasswordRedacted() zapcore.Field { return zap.String("url.password", "***") }
 
 // URLExtension emits ECS url.extension.
 func URLExtension(v string) zapcore.Field { return zap.String("url.extension", v) }

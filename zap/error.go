@@ -44,6 +44,9 @@ type stackTracer interface {
 //   - error.type:    always (fmt.Sprintf("%T", err))
 //   - error.stack_trace: if any error in the chain implements StackTracer
 //
+// The StackTrace method is satisfied by e.g. github.com/pkg/errors
+// (via errors.WithStack) and github.com/samber/oops.
+//
 // Err is the only multi-field constructor in the library, provided so callers
 // do not need any specific zap encoder (e.g. ecszap) to obtain a stack trace.
 // Returns nil if err is nil so the caller can splat it unconditionally.

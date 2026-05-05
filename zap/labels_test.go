@@ -1,6 +1,7 @@
 package zap_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,18 +21,14 @@ func TestNumericLabel(t *testing.T) {
 	f := ecszap.NumericLabel("consecutive_errors", 7)
 	assert.Equal(t, "numeric_labels.consecutive_errors", f.Key)
 	assert.Equal(t, zapcore.Float64Type, f.Type)
-	// zap stores float64 in Integer via math.Float64bits.
-	// We round-trip through the public API instead of reaching for unsafe internals:
-	// the caller value is recoverable because Float64Type uses Integer field directly.
-	// Simpler: just assert key and type — value semantics covered by zap itself.
+	assert.Equal(t, 7.0, math.Float64frombits(uint64(f.Integer)))
 }
 
 func TestTags_Single(t *testing.T) {
 	f := ecszap.Tags("auth", "critical")
 	assert.Equal(t, "tags", f.Key)
 	assert.Equal(t, zapcore.ArrayMarshalerType, f.Type)
-	require := assert.New(t)
-	require.NotNil(f.Interface)
+	assert.NotNil(t, f.Interface)
 }
 
 func TestTags_Empty(t *testing.T) {

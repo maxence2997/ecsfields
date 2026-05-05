@@ -5,6 +5,8 @@
 // Out of scope (per spec, network monitoring fields):
 //   server.bytes, server.packets, server.nat.*, server.geo.*, server.as.*,
 //   server.user.*
+//
+// See docs/ecs-coverage.md for full scope decisions.
 
 package zap
 

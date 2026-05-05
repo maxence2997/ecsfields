@@ -5,6 +5,8 @@
 // Out of scope (per spec, security-domain or endpoint-monitoring fields):
 //   process.io.*, process.env_vars, process.entity_id, process.vpid,
 //   process.parent.*, process.group_leader.*, process.entry_leader.*
+//
+// See docs/ecs-coverage.md for full scope decisions.
 
 package zap
 

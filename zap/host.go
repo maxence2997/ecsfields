@@ -6,6 +6,8 @@
 //   host.cpu.*, host.disk.*, host.network.*  (runtime metrics)
 //   host.os.*, host.geo.*                     (deferred to future v1.x)
 //   host.risk.*                               (security domain, not planned)
+//
+// See docs/ecs-coverage.md for full scope decisions.
 
 package zap
 
