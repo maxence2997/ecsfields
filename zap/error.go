@@ -67,3 +67,38 @@ func Err(err error) []zapcore.Field {
 	}
 	return fields
 }
+
+// ErrAny extracts ECS error.* fields from any value, intended for cases where
+// the input is not statically typed as error — most commonly the result of
+// recover() during panic handling. Behavior by input type:
+//
+//   - nil:    returns nil (no fields), so callers can splat unconditionally
+//   - error:  delegates to Err(err) — error.stack_trace included if the error
+//     implements interface{ StackTrace() []byte }
+//   - other:  error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
+//
+// ErrAny intentionally does not call runtime/debug.Stack() itself. To attach
+// the panic stack, append ErrorStackTrace(debug.Stack()) at the call site —
+// callers may want to skip the cost or use a different stack source.
+//
+// Typical panic recovery:
+//
+//	defer func() {
+//	    if r := recover(); r != nil {
+//	        fields := ErrAny(r)
+//	        fields = append(fields, ErrorStackTrace(debug.Stack()))
+//	        logger.Error("panic recovered", fields...)
+//	    }
+//	}()
+func ErrAny(v any) []zapcore.Field {
+	if v == nil {
+		return nil
+	}
+	if err, ok := v.(error); ok {
+		return Err(err)
+	}
+	return []zapcore.Field{
+		ErrorMessage(fmt.Sprint(v)),
+		ErrorType(fmt.Sprintf("%T", v)),
+	}
+}

@@ -109,3 +109,91 @@ func TestErr_StackTracer_EmitsStackTrace(t *testing.T) {
 		}
 	}
 }
+
+func TestErrAny_Nil(t *testing.T) {
+	assert.Nil(t, ecszap.ErrAny(nil))
+}
+
+func TestErrAny_Error_DelegatesToErr(t *testing.T) {
+	err := errors.New("boom")
+	got := ecszap.ErrAny(err)
+	require.Len(t, got, 2)
+
+	keys := []string{got[0].Key, got[1].Key}
+	assert.ElementsMatch(t, []string{"error.message", "error.type"}, keys)
+	for _, f := range got {
+		switch f.Key {
+		case "error.message":
+			assert.Equal(t, "boom", f.String)
+		case "error.type":
+			assert.Equal(t, fmt.Sprintf("%T", err), f.String)
+		}
+	}
+}
+
+func TestErrAny_StackTracerError_IncludesStackTrace(t *testing.T) {
+	err := &fakeStackTracer{msg: "kaboom", stack: []byte("goroutine 1...")}
+	got := ecszap.ErrAny(err)
+	require.Len(t, got, 3)
+
+	var keys []string
+	for _, f := range got {
+		keys = append(keys, f.Key)
+	}
+	assert.ElementsMatch(t,
+		[]string{"error.message", "error.type", "error.stack_trace"},
+		keys,
+	)
+}
+
+func TestErrAny_String(t *testing.T) {
+	got := ecszap.ErrAny("oops")
+	require.Len(t, got, 2)
+
+	for _, f := range got {
+		switch f.Key {
+		case "error.message":
+			assert.Equal(t, "oops", f.String)
+		case "error.type":
+			assert.Equal(t, "string", f.String)
+		default:
+			t.Fatalf("unexpected key %q", f.Key)
+		}
+	}
+}
+
+func TestErrAny_Int(t *testing.T) {
+	got := ecszap.ErrAny(42)
+	require.Len(t, got, 2)
+
+	for _, f := range got {
+		switch f.Key {
+		case "error.message":
+			assert.Equal(t, "42", f.String)
+		case "error.type":
+			assert.Equal(t, "int", f.String)
+		default:
+			t.Fatalf("unexpected key %q", f.Key)
+		}
+	}
+}
+
+type panicPayload struct {
+	Reason string
+}
+
+func TestErrAny_Struct(t *testing.T) {
+	got := ecszap.ErrAny(panicPayload{Reason: "deadlocked"})
+	require.Len(t, got, 2)
+
+	for _, f := range got {
+		switch f.Key {
+		case "error.message":
+			assert.Equal(t, "{deadlocked}", f.String)
+		case "error.type":
+			assert.Equal(t, "zap_test.panicPayload", f.String)
+		default:
+			t.Fatalf("unexpected key %q", f.Key)
+		}
+	}
+}
