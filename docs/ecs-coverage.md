@@ -1,4 +1,4 @@
-# ECS coverage — v0.2.0
+# ECS coverage
 
 Pinned to **ECS 8.17**. This document tracks which ECS field families are
 covered, deferred, or out of scope.
