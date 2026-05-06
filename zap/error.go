@@ -11,6 +11,7 @@ package zap
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -72,10 +73,12 @@ func Err(err error) []zapcore.Field {
 // the input is not statically typed as error — most commonly the result of
 // recover() during panic handling. Behavior by input type:
 //
-//   - nil:    returns nil (no fields), so callers can splat unconditionally
-//   - error:  delegates to Err(err) — error.stack_trace included if the error
-//     implements interface{ StackTrace() []byte }
-//   - other:  error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
+//   - nil:             returns nil (no fields)
+//   - typed-nil error: error.type emitted, error.message = "<nil>" — never
+//     calls Error() on the typed-nil receiver, which would panic
+//   - error:           delegates to Err(err) — error.stack_trace included if
+//     the error implements interface{ StackTrace() []byte }
+//   - other:           error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
 //
 // ErrAny intentionally does not call runtime/debug.Stack() itself. To attach
 // the panic stack, append ErrorStackTrace(debug.Stack()) at the call site —
@@ -95,10 +98,29 @@ func ErrAny(v any) []zapcore.Field {
 		return nil
 	}
 	if err, ok := v.(error); ok {
+		if isTypedNil(err) {
+			return []zapcore.Field{
+				ErrorMessage("<nil>"),
+				ErrorType(fmt.Sprintf("%T", err)),
+			}
+		}
 		return Err(err)
 	}
 	return []zapcore.Field{
 		ErrorMessage(fmt.Sprint(v)),
 		ErrorType(fmt.Sprintf("%T", v)),
 	}
+}
+
+// isTypedNil reports whether v is non-nil at the interface level but holds a
+// nil concrete value (e.g. (*MyErr)(nil) cast to error). Calling methods that
+// dereference the receiver on such a value panics, so ErrAny short-circuits
+// before invoking err.Error().
+func isTypedNil(v any) bool {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func, reflect.Interface:
+		return rv.IsNil()
+	}
+	return false
 }

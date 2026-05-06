@@ -197,3 +197,32 @@ func TestErrAny_Struct(t *testing.T) {
 		}
 	}
 }
+
+// derefingErr panics on Error() if the receiver is nil — emulating the common
+// Go gotcha where panic(typedNilError) is recovered as a non-nil error
+// interface holding a nil pointer.
+type derefingErr struct{ msg string }
+
+func (d *derefingErr) Error() string { return d.msg }
+
+func TestErrAny_TypedNilPointerError_DoesNotPanic(t *testing.T) {
+	var typedNil *derefingErr
+	var asInterface error = typedNil
+
+	var got []zapcore.Field
+	require.NotPanics(t, func() {
+		got = ecszap.ErrAny(asInterface)
+	})
+	require.Len(t, got, 2)
+
+	for _, f := range got {
+		switch f.Key {
+		case "error.message":
+			assert.Equal(t, "<nil>", f.String)
+		case "error.type":
+			assert.Equal(t, "*zap_test.derefingErr", f.String)
+		default:
+			t.Fatalf("unexpected key %q", f.Key)
+		}
+	}
+}
