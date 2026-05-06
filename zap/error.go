@@ -58,6 +58,10 @@ type stackTracerPCs interface {
 //     1. interface{ StackTrace() []byte }                  (samber/oops)
 //     2. interface{ StackTrace() pkgerrors.StackTrace }    (github.com/pkg/errors)
 //
+// Typed-nil errors (a non-nil interface holding a nil pointer, e.g.
+// (*MyErr)(nil) cast to error) are handled safely: error.type is emitted,
+// error.message = "<nil>", and Error() is never called on the nil receiver.
+//
 // Returns zap.Skip() if err is nil so the caller can pass the result
 // unconditionally:
 //
@@ -113,9 +117,18 @@ func ErrAny(v any) zapcore.Field {
 
 // errMarshaler renders an error into ECS error.* keys at the encoder's
 // current namespace (no nesting). Used by Err via zap.Inline.
+//
+// Guards against typed-nil errors (non-nil interface holding a nil pointer)
+// by checking before calling Error() — that call would otherwise panic on
+// the nil receiver.
 type errMarshaler struct{ err error }
 
 func (m errMarshaler) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	if isTypedNil(m.err) {
+		enc.AddString("error.message", "<nil>")
+		enc.AddString("error.type", fmt.Sprintf("%T", m.err))
+		return nil
+	}
 	enc.AddString("error.message", m.err.Error())
 	enc.AddString("error.type", fmt.Sprintf("%T", m.err))
 	if stack := extractStackTrace(m.err); len(stack) > 0 {
@@ -124,17 +137,14 @@ func (m errMarshaler) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	return nil
 }
 
-// errAnyMarshaler renders any value into ECS error.* keys, handling the
-// typed-nil error gotcha and non-error values. Used by ErrAny via zap.Inline.
+// errAnyMarshaler renders any value into ECS error.* keys, routing error
+// values through errMarshaler (which handles typed-nil) and falling back to
+// fmt.Sprint / fmt.Sprintf("%T") for non-error values. Used by ErrAny via
+// zap.Inline.
 type errAnyMarshaler struct{ v any }
 
 func (m errAnyMarshaler) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	if err, ok := m.v.(error); ok {
-		if isTypedNil(err) {
-			enc.AddString("error.message", "<nil>")
-			enc.AddString("error.type", fmt.Sprintf("%T", err))
-			return nil
-		}
 		return errMarshaler{err: err}.MarshalLogObject(enc)
 	}
 	enc.AddString("error.message", fmt.Sprint(m.v))

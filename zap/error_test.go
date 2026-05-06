@@ -4,6 +4,7 @@ package zap_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	pkgerrors "github.com/pkg/errors"
@@ -68,7 +69,7 @@ func TestErr_StdlibError_NoStackTrace(t *testing.T) {
 	got := emit(ecszap.Err(err))
 
 	assert.Equal(t, "boom", got["error.message"])
-	assert.Equal(t, "*errors.errorString", got["error.type"])
+	assert.Equal(t, fmt.Sprintf("%T", err), got["error.type"])
 	assert.NotContains(t, got, "error.stack_trace")
 }
 
@@ -85,7 +86,7 @@ func TestErr_BytesStackTracer_EmitsStackTrace(t *testing.T) {
 	got := emit(ecszap.Err(err))
 
 	assert.Equal(t, "kaboom", got["error.message"])
-	assert.Equal(t, "*zap_test.fakeStackTracer", got["error.type"])
+	assert.Equal(t, fmt.Sprintf("%T", err), got["error.type"])
 	assert.Equal(t, "goroutine 1...", got["error.stack_trace"])
 }
 
@@ -114,7 +115,7 @@ func TestErrAny_Error_DelegatesToErr(t *testing.T) {
 	got := emit(ecszap.ErrAny(err))
 
 	assert.Equal(t, "boom", got["error.message"])
-	assert.Equal(t, "*errors.errorString", got["error.type"])
+	assert.Equal(t, fmt.Sprintf("%T", err), got["error.type"])
 	assert.NotContains(t, got, "error.stack_trace")
 }
 
@@ -123,22 +124,24 @@ func TestErrAny_StackTracerError_IncludesStackTrace(t *testing.T) {
 	got := emit(ecszap.ErrAny(err))
 
 	assert.Equal(t, "kaboom", got["error.message"])
-	assert.Equal(t, "*zap_test.fakeStackTracer", got["error.type"])
+	assert.Equal(t, fmt.Sprintf("%T", err), got["error.type"])
 	assert.Equal(t, "goroutine 1...", got["error.stack_trace"])
 }
 
 func TestErrAny_String(t *testing.T) {
-	got := emit(ecszap.ErrAny("oops"))
+	v := "oops"
+	got := emit(ecszap.ErrAny(v))
 
-	assert.Equal(t, "oops", got["error.message"])
-	assert.Equal(t, "string", got["error.type"])
+	assert.Equal(t, v, got["error.message"])
+	assert.Equal(t, fmt.Sprintf("%T", v), got["error.type"])
 }
 
 func TestErrAny_Int(t *testing.T) {
-	got := emit(ecszap.ErrAny(42))
+	v := 42
+	got := emit(ecszap.ErrAny(v))
 
 	assert.Equal(t, "42", got["error.message"])
-	assert.Equal(t, "int", got["error.type"])
+	assert.Equal(t, fmt.Sprintf("%T", v), got["error.type"])
 }
 
 type panicPayload struct {
@@ -146,10 +149,11 @@ type panicPayload struct {
 }
 
 func TestErrAny_Struct(t *testing.T) {
-	got := emit(ecszap.ErrAny(panicPayload{Reason: "deadlocked"}))
+	v := panicPayload{Reason: "deadlocked"}
+	got := emit(ecszap.ErrAny(v))
 
 	assert.Equal(t, "{deadlocked}", got["error.message"])
-	assert.Equal(t, "zap_test.panicPayload", got["error.type"])
+	assert.Equal(t, fmt.Sprintf("%T", v), got["error.type"])
 }
 
 // derefingErr panics on Error() if the receiver is nil — emulating the common
@@ -169,5 +173,18 @@ func TestErrAny_TypedNilPointerError_DoesNotPanic(t *testing.T) {
 	})
 
 	assert.Equal(t, "<nil>", got["error.message"])
-	assert.Equal(t, "*zap_test.derefingErr", got["error.type"])
+	assert.Equal(t, fmt.Sprintf("%T", asInterface), got["error.type"])
+}
+
+func TestErr_TypedNilPointerError_DoesNotPanic(t *testing.T) {
+	var typedNil *derefingErr
+	var asInterface error = typedNil
+
+	var got map[string]any
+	require.NotPanics(t, func() {
+		got = emit(ecszap.Err(asInterface))
+	})
+
+	assert.Equal(t, "<nil>", got["error.message"])
+	assert.Equal(t, fmt.Sprintf("%T", asInterface), got["error.type"])
 }
