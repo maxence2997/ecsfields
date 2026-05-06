@@ -84,7 +84,7 @@ See [`example/main.go`](example/main.go) for a runnable end-to-end example.
 
 ## Coverage
 
-v0.1.0 covers ~116 helpers across these top-level ECS fieldsets:
+v0.2.0 covers ~117 helpers across these top-level ECS fieldsets:
 
 | Fieldset                             | Helpers            | Notes                                         |
 | ------------------------------------ | ------------------ | --------------------------------------------- |
@@ -92,7 +92,7 @@ v0.1.0 covers ~116 helpers across these top-level ECS fieldsets:
 | `host.*`                             | 9                  | top-level only; metrics deferred              |
 | `process.*`                          | 11                 | top-level; io / env_vars / entity_id deferred |
 | `event.*`                            | 22 + 4 typed enums | kind / outcome / category / type are typed    |
-| `error.*`                            | 5 + `Err()` helper | full top-level                                |
+| `error.*`                            | 5 + `Err()` / `ErrAny()` | full top-level                          |
 | `log.*` (+ origin)                   | 6                  | syslog deferred                               |
 | `trace` / `span` / `transaction` ids | 3                  | full                                          |
 | `http.*`                             | 13                 | full                                          |
@@ -119,6 +119,27 @@ fields (`numeric_labels.*`, `service.address`, `service.ephemeral_id`, etc.).
 | [`go.elastic.co/ecszap`](https://github.com/elastic/ecs-logging-go-zap) | zap encoder. Renames zap's built-in keys (`level` → `log.level`, `msg` → `message`, `ts` → `@timestamp`) and formats stack traces ECS-style. | **Use both — they cover different parts of the log.** ecszap fixes what zap auto-emits (`level`, `ts`, `msg`, `caller`, `stacktrace`). ecsfields gives you typed constructors for every field you add yourself. |
 | [`github.com/elastic/ecs`](https://github.com/elastic/ecs)              | Canonical ECS schema definitions and document marshaling for full-document construction.                                                     | Different concern. ecsfields is for incremental field-by-field logging in zap, not for building complete ECS documents.                                                                                                                                                                                                          |
 | [`github.com/andrewkroh/go-ecs`](https://github.com/andrewkroh/go-ecs)  | ECS schema query and introspection tool.                                                                                                     | Different concern (schema introspection at runtime, not log emission).                                                                                                                                                                                                                                                           |
+
+### Using ecsfields error helpers vs `zap.Error`
+
+If you use the ecszap encoder, `zap.Error(err)` already produces ECS-shaped
+`error.message` and `error.stack_trace` — you do not have to migrate existing
+`zap.Error(err)` call sites purely for ECS compliance.
+
+That said, `ecsf.Err(err)` does three things `zap.Error(err)` doesn't:
+
+1. **Always emits `error.type`.** Lets you filter Kibana by Go error class
+   (`*pq.Error`, `*net.OpError`, ...). `zap.Error` never sets this field.
+2. **Encoder-agnostic.** Produces correct ECS keys regardless of encoder.
+   `zap.Error` only outputs ECS shape under ecszap; with the default JSON
+   encoder it falls back to a flat `"error":"..."` string.
+3. **Composable.** The single-field helpers (`ErrorCode`, `ErrorID`,
+   `ErrorStackTrace`) and `ErrAny(any)` (for `recover()` values) cover cases
+   that have no Go `error` to pass to `zap.Error` in the first place.
+
+Recommended: use `ecsf.Err(err)` for new code or any error you want to be able
+to classify in Kibana. Keep existing `zap.Error(err)` call sites if you only
+need message + stack_trace and you're committed to the ecszap encoder.
 
 ## License
 

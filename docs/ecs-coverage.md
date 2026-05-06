@@ -1,4 +1,4 @@
-# ECS coverage — v0.1.0
+# ECS coverage — v0.2.0
 
 Pinned to **ECS 8.17**. This document tracks which ECS field families are
 covered, deferred, or out of scope.
@@ -12,7 +12,7 @@ covered, deferred, or out of scope.
 | `host.*` (top-level)                    | 9        | `HostIP` / `HostMAC` are variadic; `HostUptime` emits seconds                                                                         |
 | `process.*` (top-level)                 | 11       | `ProcessUptime` emits seconds; `ProcessStart` is `time.Time`; endpoint-security subtrees excluded                                     |
 | `event.*`                               | 22       | `event.duration` emits **nanoseconds**; `event.original` is bytes; typed enums for `kind`/`outcome`/`category`/`type`                 |
-| `error.*` + `Err()`                     | 5 + 1    | `Err()` extracts `error.message` / `error.type` always, `error.stack_trace` when source implements `interface{ StackTrace() []byte }` |
+| `error.*` + `Err()` / `ErrAny()`        | 5 + 2    | `Err(error)` and `ErrAny(any)` both extract `error.message` / `error.type` always, plus `error.stack_trace` when source implements `interface{ StackTrace() []byte }`. `ErrAny` accepts `recover()` payloads (typed as `any`) and delegates to `Err` when the value satisfies `error`. |
 | `log.*`                                 | 6        | Includes `log.origin.*`                                                                                                               |
 | `trace.id`, `span.id`, `transaction.id` | 3        | APM correlation                                                                                                                       |
 | `http.*`                                | 13       | Bytes are `int64`, status code is `int`                                                                                               |
@@ -20,7 +20,7 @@ covered, deferred, or out of scope.
 | `client.*` (top-level)                  | 8        | Excludes network-monitoring subtrees                                                                                                  |
 | `server.*` (top-level)                  | 8        | Mirrors `client.*`                                                                                                                    |
 | `user_agent.*`                          | 4        | `original`, `name`, `version`, `device.name`                                                                                          |
-| **Total**                               | **~116** |                                                                                                                                       |
+| **Total**                               | **~117** |                                                                                                                                       |
 
 ## Deferred (additive in future v1.x)
 
