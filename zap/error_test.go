@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	pkgerrors "github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
@@ -194,6 +195,36 @@ func TestErrAny_Struct(t *testing.T) {
 			assert.Equal(t, "zap_test.panicPayload", f.String)
 		default:
 			t.Fatalf("unexpected key %q", f.Key)
+		}
+	}
+}
+
+func TestErr_PkgErrorsStackTracer_EmitsStackTrace(t *testing.T) {
+	err := pkgerrors.New("boom")
+	got := ecszap.Err(err)
+	require.Len(t, got, 3)
+
+	var keys []string
+	for _, f := range got {
+		keys = append(keys, f.Key)
+	}
+	assert.ElementsMatch(t,
+		[]string{"error.message", "error.type", "error.stack_trace"},
+		keys,
+	)
+
+	for _, f := range got {
+		switch f.Key {
+		case "error.message":
+			assert.Equal(t, "boom", f.String)
+		case "error.stack_trace":
+			assert.Equal(t, zapcore.ByteStringType, f.Type)
+			enc := zapcore.NewMapObjectEncoder()
+			f.AddTo(enc)
+			stack := enc.Fields["error.stack_trace"].(string)
+			assert.NotEmpty(t, stack)
+			assert.Contains(t, stack, "TestErr_PkgErrorsStackTracer_EmitsStackTrace",
+				"stack should reference the test function frame")
 		}
 	}
 }

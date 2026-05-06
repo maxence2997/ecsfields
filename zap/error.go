@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"reflect"
 
+	pkgerrors "github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -33,21 +34,28 @@ func ErrorCode(code string) zapcore.Field { return zap.String("error.code", code
 // ErrorID emits ECS error.id (a unique identifier for the error instance).
 func ErrorID(id string) zapcore.Field { return zap.String("error.id", id) }
 
-// stackTracer is the conventional interface for errors that carry a captured stack.
-// samber/oops satisfies this interface natively.
-type stackTracer interface {
+// stackTracerBytes is satisfied by errors that expose a pre-formatted stack
+// trace as bytes. samber/oops errors satisfy this interface natively.
+type stackTracerBytes interface {
 	StackTrace() []byte
+}
+
+// stackTracerPCs is satisfied by errors that expose a stack trace as
+// pkg/errors-style program counters. github.com/pkg/errors errors (e.g. those
+// returned by errors.New / errors.Wrap from that package) satisfy this
+// interface natively.
+type stackTracerPCs interface {
+	StackTrace() pkgerrors.StackTrace
 }
 
 // Err extracts ECS error.* fields from a Go error. It returns:
 //
 //   - error.message: always (err.Error())
 //   - error.type:    always (fmt.Sprintf("%T", err))
-//   - error.stack_trace: if any error in the chain implements interface{ StackTrace() []byte }
-//
-// The StackTrace method must have signature: StackTrace() []byte.
-// Note: github.com/pkg/errors exposes StackTrace() errors.StackTrace ([]uintptr)
-// and does NOT satisfy this interface. Use a wrapper or samber/oops instead.
+//   - error.stack_trace: if any error in the chain implements one of the
+//     conventional stack-trace interfaces — checked in this order:
+//     1. interface{ StackTrace() []byte }                  (samber/oops)
+//     2. interface{ StackTrace() errors.StackTrace }       (github.com/pkg/errors)
 //
 // Err is the only multi-field constructor in the library, provided so callers
 // do not need any specific zap encoder (e.g. ecszap) to obtain a stack trace.
@@ -60,13 +68,32 @@ func Err(err error) []zapcore.Field {
 		ErrorMessage(err.Error()),
 		ErrorType(fmt.Sprintf("%T", err)),
 	}
-	var st stackTracer
-	if errors.As(err, &st) {
-		if stack := st.StackTrace(); len(stack) > 0 {
-			fields = append(fields, ErrorStackTrace(stack))
-		}
+	if stack := extractStackTrace(err); len(stack) > 0 {
+		fields = append(fields, ErrorStackTrace(stack))
 	}
 	return fields
+}
+
+// extractStackTrace walks the error chain and returns the first stack trace
+// found, in []byte form ready for ErrorStackTrace. Returns nil if no error in
+// the chain carries a stack trace.
+func extractStackTrace(err error) []byte {
+	var bytesST stackTracerBytes
+	if errors.As(err, &bytesST) {
+		if s := bytesST.StackTrace(); len(s) > 0 {
+			return s
+		}
+	}
+	var pcsST stackTracerPCs
+	if errors.As(err, &pcsST) {
+		if s := pcsST.StackTrace(); len(s) > 0 {
+			// pkg/errors.StackTrace implements fmt.Formatter; %+v renders each
+			// frame as "function\n\tfile:line", matching what users expect to
+			// see in error.stack_trace.
+			return fmt.Appendf(nil, "%+v", s)
+		}
+	}
+	return nil
 }
 
 // ErrAny extracts ECS error.* fields from any value, intended for cases where
@@ -77,7 +104,8 @@ func Err(err error) []zapcore.Field {
 //   - typed-nil error: error.type emitted, error.message = "<nil>" — never
 //     calls Error() on the typed-nil receiver, which would panic
 //   - error:           delegates to Err(err) — error.stack_trace included if
-//     the error implements interface{ StackTrace() []byte }
+//     the error implements either StackTrace() []byte (samber/oops) or
+//     StackTrace() errors.StackTrace (github.com/pkg/errors)
 //   - other:           error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
 //
 // ErrAny intentionally does not call runtime/debug.Stack() itself. To attach
