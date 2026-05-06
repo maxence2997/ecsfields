@@ -3,8 +3,10 @@
 // ECS reference (8.17): https://www.elastic.co/guide/en/ecs/8.17/ecs-error.html
 //
 // The package exposes single-field constructors (uniform with the rest of the
-// library) plus one multi-field convenience helper, Err(), which extracts ECS
-// error.* fields from a Go error without requiring any specific zap encoder.
+// library) plus two multi-field convenience helpers, Err() and ErrAny(), that
+// pack the standard error.* fields into a single inline zap.Field. Callers do
+// not need any specific zap encoder — output is flat dotted ECS keys, the
+// same shape every other constructor in this package emits.
 
 package zap
 
@@ -47,7 +49,7 @@ type stackTracerPCs interface {
 	StackTrace() pkgerrors.StackTrace
 }
 
-// Err extracts ECS error.* fields from a Go error. It returns:
+// Err returns a single inline zap.Field that emits ECS error.* fields:
 //
 //   - error.message: always (err.Error())
 //   - error.type:    always (fmt.Sprintf("%T", err))
@@ -56,21 +58,88 @@ type stackTracerPCs interface {
 //     1. interface{ StackTrace() []byte }                  (samber/oops)
 //     2. interface{ StackTrace() pkgerrors.StackTrace }    (github.com/pkg/errors)
 //
-// Err is the only multi-field constructor in the library, provided so callers
-// do not need any specific zap encoder (e.g. ecszap) to obtain a stack trace.
-// Returns nil if err is nil so the caller can splat it unconditionally.
-func Err(err error) []zapcore.Field {
+// Returns zap.Skip() if err is nil so the caller can pass the result
+// unconditionally:
+//
+//	logger.Error("operation failed",
+//	    ServiceName("auth-api"),
+//	    EventAction("user.login"),
+//	    Err(err),
+//	)
+//
+// The output JSON is flat dotted ECS keys (error.message, error.type,
+// error.stack_trace) — identical to manually composing single-field helpers,
+// but as one Field so it composes naturally with sibling fields.
+func Err(err error) zapcore.Field {
 	if err == nil {
-		return nil
+		return zap.Skip()
 	}
-	fields := []zapcore.Field{
-		ErrorMessage(err.Error()),
-		ErrorType(fmt.Sprintf("%T", err)),
+	return zap.Inline(errMarshaler{err: err})
+}
+
+// ErrAny returns a single inline zap.Field that emits ECS error.* fields from
+// any value, intended for cases where the input is not statically typed as
+// error — most commonly the result of recover() during panic handling.
+// Behavior by input type:
+//
+//   - nil:             returns zap.Skip() (no fields emitted)
+//   - typed-nil error: error.type emitted, error.message = "<nil>" — never
+//     calls Error() on the typed-nil receiver, which would panic
+//   - error:           same fields as Err(err), including error.stack_trace
+//     when the error implements either StackTrace() []byte (samber/oops) or
+//     StackTrace() pkgerrors.StackTrace (github.com/pkg/errors)
+//   - other:           error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
+//
+// ErrAny intentionally does not call runtime/debug.Stack() itself. To attach
+// the panic stack, pass it explicitly — callers may want to skip the cost or
+// use a different stack source.
+//
+// Typical panic recovery:
+//
+//	defer func() {
+//	    if r := recover(); r != nil {
+//	        logger.Error("panic recovered",
+//	            ErrAny(r),
+//	            ErrorStackTrace(debug.Stack()),
+//	        )
+//	    }
+//	}()
+func ErrAny(v any) zapcore.Field {
+	if v == nil {
+		return zap.Skip()
 	}
-	if stack := extractStackTrace(err); len(stack) > 0 {
-		fields = append(fields, ErrorStackTrace(stack))
+	return zap.Inline(errAnyMarshaler{v: v})
+}
+
+// errMarshaler renders an error into ECS error.* keys at the encoder's
+// current namespace (no nesting). Used by Err via zap.Inline.
+type errMarshaler struct{ err error }
+
+func (m errMarshaler) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddString("error.message", m.err.Error())
+	enc.AddString("error.type", fmt.Sprintf("%T", m.err))
+	if stack := extractStackTrace(m.err); len(stack) > 0 {
+		enc.AddByteString("error.stack_trace", stack)
 	}
-	return fields
+	return nil
+}
+
+// errAnyMarshaler renders any value into ECS error.* keys, handling the
+// typed-nil error gotcha and non-error values. Used by ErrAny via zap.Inline.
+type errAnyMarshaler struct{ v any }
+
+func (m errAnyMarshaler) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	if err, ok := m.v.(error); ok {
+		if isTypedNil(err) {
+			enc.AddString("error.message", "<nil>")
+			enc.AddString("error.type", fmt.Sprintf("%T", err))
+			return nil
+		}
+		return errMarshaler{err: err}.MarshalLogObject(enc)
+	}
+	enc.AddString("error.message", fmt.Sprint(m.v))
+	enc.AddString("error.type", fmt.Sprintf("%T", m.v))
+	return nil
 }
 
 // extractStackTrace walks the error chain and returns the first stack trace
@@ -93,50 +162,6 @@ func extractStackTrace(err error) []byte {
 		}
 	}
 	return nil
-}
-
-// ErrAny extracts ECS error.* fields from any value, intended for cases where
-// the input is not statically typed as error — most commonly the result of
-// recover() during panic handling. Behavior by input type:
-//
-//   - nil:             returns nil (no fields)
-//   - typed-nil error: error.type emitted, error.message = "<nil>" — never
-//     calls Error() on the typed-nil receiver, which would panic
-//   - error:           delegates to Err(err) — error.stack_trace included if
-//     the error implements either StackTrace() []byte (samber/oops) or
-//     StackTrace() pkgerrors.StackTrace (github.com/pkg/errors)
-//   - other:           error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
-//
-// ErrAny intentionally does not call runtime/debug.Stack() itself. To attach
-// the panic stack, append ErrorStackTrace(debug.Stack()) at the call site —
-// callers may want to skip the cost or use a different stack source.
-//
-// Typical panic recovery:
-//
-//	defer func() {
-//	    if r := recover(); r != nil {
-//	        fields := ErrAny(r)
-//	        fields = append(fields, ErrorStackTrace(debug.Stack()))
-//	        logger.Error("panic recovered", fields...)
-//	    }
-//	}()
-func ErrAny(v any) []zapcore.Field {
-	if v == nil {
-		return nil
-	}
-	if err, ok := v.(error); ok {
-		if isTypedNil(err) {
-			return []zapcore.Field{
-				ErrorMessage("<nil>"),
-				ErrorType(fmt.Sprintf("%T", err)),
-			}
-		}
-		return Err(err)
-	}
-	return []zapcore.Field{
-		ErrorMessage(fmt.Sprint(v)),
-		ErrorType(fmt.Sprintf("%T", v)),
-	}
 }
 
 // isTypedNil reports whether v is non-nil at the interface level but holds a

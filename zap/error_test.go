@@ -4,7 +4,6 @@ package zap_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	pkgerrors "github.com/pkg/errors"
@@ -14,6 +13,14 @@ import (
 
 	ecszap "github.com/maxence2997/ecsfields/zap"
 )
+
+// emit applies the field to a MapObjectEncoder and returns the resulting key
+// map. Inline fields (Err / ErrAny) flatten their sub-keys into this map.
+func emit(f zapcore.Field) map[string]any {
+	enc := zapcore.NewMapObjectEncoder()
+	f.AddTo(enc)
+	return enc.Fields
+}
 
 func TestErrorMessage(t *testing.T) {
 	f := ecszap.ErrorMessage("boom")
@@ -33,10 +40,7 @@ func TestErrorStackTrace(t *testing.T) {
 	f := ecszap.ErrorStackTrace([]byte("goroutine 1"))
 	assert.Equal(t, "error.stack_trace", f.Key)
 	assert.Equal(t, zapcore.ByteStringType, f.Type)
-
-	enc := zapcore.NewMapObjectEncoder()
-	f.AddTo(enc)
-	assert.Equal(t, "goroutine 1", enc.Fields["error.stack_trace"])
+	assert.Equal(t, "goroutine 1", emit(f)["error.stack_trace"])
 }
 
 func TestErrorCode(t *testing.T) {
@@ -53,27 +57,19 @@ func TestErrorID(t *testing.T) {
 	assert.Equal(t, "err-1", f.String)
 }
 
-func TestErr_Nil(t *testing.T) {
-	got := ecszap.Err(nil)
-	assert.Nil(t, got)
+func TestErr_Nil_ReturnsSkip(t *testing.T) {
+	f := ecszap.Err(nil)
+	assert.Equal(t, zapcore.SkipType, f.Type)
+	assert.Empty(t, emit(f))
 }
 
 func TestErr_StdlibError_NoStackTrace(t *testing.T) {
 	err := errors.New("boom")
-	got := ecszap.Err(err)
-	require.Len(t, got, 2)
+	got := emit(ecszap.Err(err))
 
-	keys := []string{got[0].Key, got[1].Key}
-	assert.ElementsMatch(t, []string{"error.message", "error.type"}, keys)
-
-	for _, f := range got {
-		switch f.Key {
-		case "error.message":
-			assert.Equal(t, "boom", f.String)
-		case "error.type":
-			assert.Equal(t, fmt.Sprintf("%T", err), f.String)
-		}
-	}
+	assert.Equal(t, "boom", got["error.message"])
+	assert.Equal(t, "*errors.errorString", got["error.type"])
+	assert.NotContains(t, got, "error.stack_trace")
 }
 
 type fakeStackTracer struct {
@@ -84,99 +80,65 @@ type fakeStackTracer struct {
 func (f *fakeStackTracer) Error() string      { return f.msg }
 func (f *fakeStackTracer) StackTrace() []byte { return f.stack }
 
-func TestErr_StackTracer_EmitsStackTrace(t *testing.T) {
+func TestErr_BytesStackTracer_EmitsStackTrace(t *testing.T) {
 	err := &fakeStackTracer{msg: "kaboom", stack: []byte("goroutine 1...")}
-	got := ecszap.Err(err)
-	require.Len(t, got, 3)
+	got := emit(ecszap.Err(err))
 
-	var keys []string
-	for _, f := range got {
-		keys = append(keys, f.Key)
-	}
-	assert.ElementsMatch(t,
-		[]string{"error.message", "error.type", "error.stack_trace"},
-		keys,
-	)
-
-	for _, f := range got {
-		switch f.Key {
-		case "error.message":
-			assert.Equal(t, "kaboom", f.String)
-		case "error.stack_trace":
-			assert.Equal(t, zapcore.ByteStringType, f.Type)
-			enc := zapcore.NewMapObjectEncoder()
-			f.AddTo(enc)
-			assert.Equal(t, "goroutine 1...", enc.Fields["error.stack_trace"])
-		}
-	}
+	assert.Equal(t, "kaboom", got["error.message"])
+	assert.Equal(t, "*zap_test.fakeStackTracer", got["error.type"])
+	assert.Equal(t, "goroutine 1...", got["error.stack_trace"])
 }
 
-func TestErrAny_Nil(t *testing.T) {
-	assert.Nil(t, ecszap.ErrAny(nil))
+func TestErr_PkgErrorsStackTracer_EmitsStackTrace(t *testing.T) {
+	err := pkgerrors.New("boom")
+	got := emit(ecszap.Err(err))
+
+	assert.Equal(t, "boom", got["error.message"])
+	assert.NotEmpty(t, got["error.type"])
+
+	stack, ok := got["error.stack_trace"].(string)
+	require.True(t, ok, "error.stack_trace should be string-coercible")
+	assert.NotEmpty(t, stack)
+	assert.Contains(t, stack, "TestErr_PkgErrorsStackTracer_EmitsStackTrace",
+		"stack should reference the test function frame")
+}
+
+func TestErrAny_Nil_ReturnsSkip(t *testing.T) {
+	f := ecszap.ErrAny(nil)
+	assert.Equal(t, zapcore.SkipType, f.Type)
+	assert.Empty(t, emit(f))
 }
 
 func TestErrAny_Error_DelegatesToErr(t *testing.T) {
 	err := errors.New("boom")
-	got := ecszap.ErrAny(err)
-	require.Len(t, got, 2)
+	got := emit(ecszap.ErrAny(err))
 
-	keys := []string{got[0].Key, got[1].Key}
-	assert.ElementsMatch(t, []string{"error.message", "error.type"}, keys)
-	for _, f := range got {
-		switch f.Key {
-		case "error.message":
-			assert.Equal(t, "boom", f.String)
-		case "error.type":
-			assert.Equal(t, fmt.Sprintf("%T", err), f.String)
-		}
-	}
+	assert.Equal(t, "boom", got["error.message"])
+	assert.Equal(t, "*errors.errorString", got["error.type"])
+	assert.NotContains(t, got, "error.stack_trace")
 }
 
 func TestErrAny_StackTracerError_IncludesStackTrace(t *testing.T) {
 	err := &fakeStackTracer{msg: "kaboom", stack: []byte("goroutine 1...")}
-	got := ecszap.ErrAny(err)
-	require.Len(t, got, 3)
+	got := emit(ecszap.ErrAny(err))
 
-	var keys []string
-	for _, f := range got {
-		keys = append(keys, f.Key)
-	}
-	assert.ElementsMatch(t,
-		[]string{"error.message", "error.type", "error.stack_trace"},
-		keys,
-	)
+	assert.Equal(t, "kaboom", got["error.message"])
+	assert.Equal(t, "*zap_test.fakeStackTracer", got["error.type"])
+	assert.Equal(t, "goroutine 1...", got["error.stack_trace"])
 }
 
 func TestErrAny_String(t *testing.T) {
-	got := ecszap.ErrAny("oops")
-	require.Len(t, got, 2)
+	got := emit(ecszap.ErrAny("oops"))
 
-	for _, f := range got {
-		switch f.Key {
-		case "error.message":
-			assert.Equal(t, "oops", f.String)
-		case "error.type":
-			assert.Equal(t, "string", f.String)
-		default:
-			t.Fatalf("unexpected key %q", f.Key)
-		}
-	}
+	assert.Equal(t, "oops", got["error.message"])
+	assert.Equal(t, "string", got["error.type"])
 }
 
 func TestErrAny_Int(t *testing.T) {
-	got := ecszap.ErrAny(42)
-	require.Len(t, got, 2)
+	got := emit(ecszap.ErrAny(42))
 
-	for _, f := range got {
-		switch f.Key {
-		case "error.message":
-			assert.Equal(t, "42", f.String)
-		case "error.type":
-			assert.Equal(t, "int", f.String)
-		default:
-			t.Fatalf("unexpected key %q", f.Key)
-		}
-	}
+	assert.Equal(t, "42", got["error.message"])
+	assert.Equal(t, "int", got["error.type"])
 }
 
 type panicPayload struct {
@@ -184,49 +146,10 @@ type panicPayload struct {
 }
 
 func TestErrAny_Struct(t *testing.T) {
-	got := ecszap.ErrAny(panicPayload{Reason: "deadlocked"})
-	require.Len(t, got, 2)
+	got := emit(ecszap.ErrAny(panicPayload{Reason: "deadlocked"}))
 
-	for _, f := range got {
-		switch f.Key {
-		case "error.message":
-			assert.Equal(t, "{deadlocked}", f.String)
-		case "error.type":
-			assert.Equal(t, "zap_test.panicPayload", f.String)
-		default:
-			t.Fatalf("unexpected key %q", f.Key)
-		}
-	}
-}
-
-func TestErr_PkgErrorsStackTracer_EmitsStackTrace(t *testing.T) {
-	err := pkgerrors.New("boom")
-	got := ecszap.Err(err)
-	require.Len(t, got, 3)
-
-	var keys []string
-	for _, f := range got {
-		keys = append(keys, f.Key)
-	}
-	assert.ElementsMatch(t,
-		[]string{"error.message", "error.type", "error.stack_trace"},
-		keys,
-	)
-
-	for _, f := range got {
-		switch f.Key {
-		case "error.message":
-			assert.Equal(t, "boom", f.String)
-		case "error.stack_trace":
-			assert.Equal(t, zapcore.ByteStringType, f.Type)
-			enc := zapcore.NewMapObjectEncoder()
-			f.AddTo(enc)
-			stack := enc.Fields["error.stack_trace"].(string)
-			assert.NotEmpty(t, stack)
-			assert.Contains(t, stack, "TestErr_PkgErrorsStackTracer_EmitsStackTrace",
-				"stack should reference the test function frame")
-		}
-	}
+	assert.Equal(t, "{deadlocked}", got["error.message"])
+	assert.Equal(t, "zap_test.panicPayload", got["error.type"])
 }
 
 // derefingErr panics on Error() if the receiver is nil — emulating the common
@@ -240,20 +163,11 @@ func TestErrAny_TypedNilPointerError_DoesNotPanic(t *testing.T) {
 	var typedNil *derefingErr
 	var asInterface error = typedNil
 
-	var got []zapcore.Field
+	var got map[string]any
 	require.NotPanics(t, func() {
-		got = ecszap.ErrAny(asInterface)
+		got = emit(ecszap.ErrAny(asInterface))
 	})
-	require.Len(t, got, 2)
 
-	for _, f := range got {
-		switch f.Key {
-		case "error.message":
-			assert.Equal(t, "<nil>", f.String)
-		case "error.type":
-			assert.Equal(t, "*zap_test.derefingErr", f.String)
-		default:
-			t.Fatalf("unexpected key %q", f.Key)
-		}
-	}
+	assert.Equal(t, "<nil>", got["error.message"])
+	assert.Equal(t, "*zap_test.derefingErr", got["error.type"])
 }
