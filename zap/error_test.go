@@ -188,3 +188,29 @@ func TestErr_TypedNilPointerError_DoesNotPanic(t *testing.T) {
 	assert.Equal(t, "<nil>", got["error.message"])
 	assert.Equal(t, fmt.Sprintf("%T", asInterface), got["error.type"])
 }
+
+// safeWrapper wraps an error without dereferencing it in Error() — so a
+// typed-nil error can be wrapped and the wrapper itself stays usable. Models
+// the fmt.Errorf("ctx: %w", typedNilErr) pattern without fmt.Errorf's own
+// formatting deref panic.
+type safeWrapper struct {
+	msg   string
+	inner error
+}
+
+func (w *safeWrapper) Error() string { return w.msg }
+func (w *safeWrapper) Unwrap() error { return w.inner }
+
+func TestErr_TypedNilStackTracerInChain_DoesNotPanic(t *testing.T) {
+	var typedNilTracer *fakeStackTracer
+	wrapped := &safeWrapper{msg: "outer", inner: typedNilTracer}
+
+	var got map[string]any
+	require.NotPanics(t, func() {
+		got = emit(ecszap.Err(wrapped))
+	})
+
+	assert.Equal(t, "outer", got["error.message"])
+	assert.Equal(t, fmt.Sprintf("%T", wrapped), got["error.type"])
+	assert.NotContains(t, got, "error.stack_trace")
+}

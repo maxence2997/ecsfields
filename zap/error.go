@@ -155,15 +155,25 @@ func (m errAnyMarshaler) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 // extractStackTrace walks the error chain and returns the first stack trace
 // found, in []byte form ready for ErrorStackTrace. Returns nil if no error in
 // the chain carries a stack trace.
+//
+// Each errors.As match is guarded against typed-nil: if the matched value is
+// a non-nil interface holding a nil concrete value, calling StackTrace() on
+// it would panic on the nil receiver, so we treat that match as "no stack".
+//
+// Limitation: if the error chain contains a typed-nil stack-bearing error in
+// front of a real stack-bearing error, only the first match is considered —
+// errors.As stops there and we treat it as "no stack" rather than risk
+// further traversal past a typed-nil. In practice typed-nil errors appear at
+// the leaf, so this is rarely observable.
 func extractStackTrace(err error) []byte {
 	var bytesST stackTracerBytes
-	if errors.As(err, &bytesST) {
+	if errors.As(err, &bytesST) && !isTypedNil(bytesST) {
 		if s := bytesST.StackTrace(); len(s) > 0 {
 			return s
 		}
 	}
 	var pcsST stackTracerPCs
-	if errors.As(err, &pcsST) {
+	if errors.As(err, &pcsST) && !isTypedNil(pcsST) {
 		if s := pcsST.StackTrace(); len(s) > 0 {
 			// pkg/errors.StackTrace implements fmt.Formatter; %+v renders each
 			// frame as "function\n\tfile:line", matching what users expect to
