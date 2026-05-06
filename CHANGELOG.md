@@ -13,17 +13,20 @@
 
   Migration:
 
+  Migration assumes the recommended import alias
+  `ecsf "github.com/maxence2997/ecsfields/zap"`:
+
   ```go
   // Before (v0.2.0):
-  fields := []zap.Field{ServiceName("auth"), EventAction("login")}
-  fields = append(fields, Err(err)...)
+  fields := []zap.Field{ecsf.ServiceName("auth"), ecsf.EventAction("login")}
+  fields = append(fields, ecsf.Err(err)...)
   logger.Error("failed", fields...)
 
   // After (v0.3.0):
   logger.Error("failed",
-      ServiceName("auth"),
-      EventAction("login"),
-      Err(err),
+      ecsf.ServiceName("auth"),
+      ecsf.EventAction("login"),
+      ecsf.Err(err),
   )
   ```
 
