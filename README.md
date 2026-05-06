@@ -122,9 +122,11 @@ fields (`numeric_labels.*`, `service.address`, `service.ephemeral_id`, etc.).
 
 ### Using ecsfields error helpers vs `zap.Error`
 
-If you use the ecszap encoder, `zap.Error(err)` already produces ECS-shaped
-`error.message` and `error.stack_trace` — you do not have to migrate existing
-`zap.Error(err)` call sites purely for ECS compliance.
+Under the ecszap encoder, `zap.Error(err)` produces ECS `error.message`
+(always) and `error.stack_trace` (only when `err` implements pkg/errors'
+`StackTrace() errors.StackTrace`). Plain `errors.New(...)` does not produce
+a stack. You do not have to migrate existing `zap.Error(err)` call sites
+purely for ECS compliance.
 
 That said, `ecsf.Err(err)` does three things `zap.Error(err)` doesn't:
 
@@ -133,12 +135,16 @@ That said, `ecsf.Err(err)` does three things `zap.Error(err)` doesn't:
 2. **Encoder-agnostic.** Produces correct ECS keys regardless of encoder.
    `zap.Error` only outputs ECS shape under ecszap; with the default JSON
    encoder it falls back to a flat `"error":"..."` string.
-3. **Composable.** The single-field helpers (`ErrorCode`, `ErrorID`,
+3. **Composable.** Single-field helpers (`ErrorCode`, `ErrorID`,
    `ErrorStackTrace`) and `ErrAny(any)` (for `recover()` values) cover cases
    that have no Go `error` to pass to `zap.Error` in the first place.
 
-Recommended: use `ecsf.Err(err)` for new code or any error you want to be able
-to classify in Kibana. Keep existing `zap.Error(err)` call sites if you only
+`ecsf.Err(err)` extracts `error.stack_trace` via either pkg/errors'
+`StackTrace() errors.StackTrace` or samber/oops' `StackTrace() []byte`,
+so any error wrapped by either library carries its stack through.
+
+Recommended: use `ecsf.Err(err)` for new code or any error you want to
+classify in Kibana. Keep existing `zap.Error(err)` call sites if you only
 need message + stack_trace and you're committed to the ecszap encoder.
 
 ## License
