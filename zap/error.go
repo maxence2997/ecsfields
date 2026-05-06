@@ -3,10 +3,10 @@
 // ECS reference (8.17): https://www.elastic.co/guide/en/ecs/8.17/ecs-error.html
 //
 // The package exposes single-field constructors (uniform with the rest of the
-// library) plus two multi-field convenience helpers, Err() and ErrAny(), that
-// pack the standard error.* fields into a single inline zap.Field. Callers do
-// not need any specific zap encoder — output is flat dotted ECS keys, the
-// same shape every other constructor in this package emits.
+// library) plus two convenience helpers, Err() and ErrAny(), that pack the
+// standard error.* fields into a single inline zap.Field via zap.Inline.
+// Callers do not need any specific zap encoder — output is flat dotted ECS
+// keys, the same shape every other constructor in this package emits.
 
 package zap
 
