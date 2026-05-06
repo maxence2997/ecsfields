@@ -124,7 +124,7 @@ fields (`numeric_labels.*`, `service.address`, `service.ephemeral_id`, etc.).
 
 Under the ecszap encoder, `zap.Error(err)` produces ECS `error.message`
 (always) and `error.stack_trace` (only when `err` implements pkg/errors'
-`StackTrace() errors.StackTrace`). Plain `errors.New(...)` does not produce
+`StackTrace() pkgerrors.StackTrace`). Plain `errors.New(...)` does not produce
 a stack. You do not have to migrate existing `zap.Error(err)` call sites
 purely for ECS compliance.
 
@@ -140,7 +140,7 @@ That said, `ecsf.Err(err)` does three things `zap.Error(err)` doesn't:
    that have no Go `error` to pass to `zap.Error` in the first place.
 
 `ecsf.Err(err)` extracts `error.stack_trace` via either pkg/errors'
-`StackTrace() errors.StackTrace` or samber/oops' `StackTrace() []byte`,
+`StackTrace() pkgerrors.StackTrace` or samber/oops' `StackTrace() []byte`,
 so any error wrapped by either library carries its stack through.
 
 Recommended: use `ecsf.Err(err)` for new code or any error you want to

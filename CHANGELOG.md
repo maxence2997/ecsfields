@@ -27,7 +27,7 @@
 ### Dependencies
 
 - Add `github.com/pkg/errors v0.9.1` (direct) — required to type-check the
-  pkg/errors `StackTrace() errors.StackTrace` interface.
+  pkg/errors `StackTrace() pkgerrors.StackTrace` interface.
 
 ### Documentation
 

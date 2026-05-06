@@ -42,8 +42,7 @@ type stackTracerBytes interface {
 
 // stackTracerPCs is satisfied by errors that expose a stack trace as
 // pkg/errors-style program counters. github.com/pkg/errors errors (e.g. those
-// returned by errors.New / errors.Wrap from that package) satisfy this
-// interface natively.
+// returned by pkgerrors.New / pkgerrors.Wrap) satisfy this interface natively.
 type stackTracerPCs interface {
 	StackTrace() pkgerrors.StackTrace
 }
@@ -55,7 +54,7 @@ type stackTracerPCs interface {
 //   - error.stack_trace: if any error in the chain implements one of the
 //     conventional stack-trace interfaces — checked in this order:
 //     1. interface{ StackTrace() []byte }                  (samber/oops)
-//     2. interface{ StackTrace() errors.StackTrace }       (github.com/pkg/errors)
+//     2. interface{ StackTrace() pkgerrors.StackTrace }    (github.com/pkg/errors)
 //
 // Err is the only multi-field constructor in the library, provided so callers
 // do not need any specific zap encoder (e.g. ecszap) to obtain a stack trace.
@@ -105,7 +104,7 @@ func extractStackTrace(err error) []byte {
 //     calls Error() on the typed-nil receiver, which would panic
 //   - error:           delegates to Err(err) — error.stack_trace included if
 //     the error implements either StackTrace() []byte (samber/oops) or
-//     StackTrace() errors.StackTrace (github.com/pkg/errors)
+//     StackTrace() pkgerrors.StackTrace (github.com/pkg/errors)
 //   - other:           error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
 //
 // ErrAny intentionally does not call runtime/debug.Stack() itself. To attach
