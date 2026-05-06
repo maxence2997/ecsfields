@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+## [0.3.0]
+
+### Changed (BREAKING)
+
+- `Err(err) zap.Field` and `ErrAny(v) zap.Field` now return a single inline
+  `zap.Field` (was `[]zap.Field`). Output JSON is unchanged — the same flat
+  dotted ECS keys (`error.message`, `error.type`, `error.stack_trace`) are
+  emitted via `zap.Inline` plus a custom `ObjectMarshaler`.
+
+  Migration:
+
+  Migration assumes the recommended import alias
+  `ecsf "github.com/maxence2997/ecsfields/zap"`:
+
+  ```go
+  // Before (v0.2.0):
+  fields := []zap.Field{ecsf.ServiceName("auth"), ecsf.EventAction("login")}
+  fields = append(fields, ecsf.Err(err)...)
+  logger.Error("failed", fields...)
+
+  // After (v0.3.0):
+  logger.Error("failed",
+      ecsf.ServiceName("auth"),
+      ecsf.EventAction("login"),
+      ecsf.Err(err),
+  )
+  ```
+
+  `nil` input still skips cleanly: `Err(nil)` and `ErrAny(nil)` now return
+  `zap.Skip()` instead of a `nil` slice; the field is no-op when added to a
+  log entry, so unconditional inline use is safe.
+
 ## [0.2.0]
 
 ### Added

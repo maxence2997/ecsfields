@@ -45,11 +45,11 @@ section.
 
 | Goal                                             | Use                       |
 | ------------------------------------------------ | ------------------------- |
-| Log a Go `error` with full ECS shape             | `ecsf.Err(err)...`        |
-| Log a `recover()` payload (typed `any`)          | `ecsf.ErrAny(v)...`       |
+| Log a Go `error` with full ECS shape             | `ecsf.Err(err)`        |
+| Log a `recover()` payload (typed `any`)          | `ecsf.ErrAny(v)`          |
 | Just need message + stack and already on ecszap  | `zap.Error(err)` is fine  |
-| Need `error.type` populated for Kibana filtering | `ecsf.Err(err)...`        |
-| Run without ecszap (e.g. console encoder)        | `ecsf.Err(err)...`        |
+| Need `error.type` populated for Kibana filtering | `ecsf.Err(err)`        |
+| Run without ecszap (e.g. console encoder)        | `ecsf.Err(err)`        |
 
 ### Detailed comparison
 

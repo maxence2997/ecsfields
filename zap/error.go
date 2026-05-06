@@ -3,8 +3,10 @@
 // ECS reference (8.17): https://www.elastic.co/guide/en/ecs/8.17/ecs-error.html
 //
 // The package exposes single-field constructors (uniform with the rest of the
-// library) plus one multi-field convenience helper, Err(), which extracts ECS
-// error.* fields from a Go error without requiring any specific zap encoder.
+// library) plus two convenience helpers, Err() and ErrAny(), that pack the
+// standard error.* fields into a single inline zap.Field via zap.Inline.
+// Callers do not need any specific zap encoder — output is flat dotted ECS
+// keys, the same shape every other constructor in this package emits.
 
 package zap
 
@@ -47,7 +49,7 @@ type stackTracerPCs interface {
 	StackTrace() pkgerrors.StackTrace
 }
 
-// Err extracts ECS error.* fields from a Go error. It returns:
+// Err returns a single inline zap.Field that emits ECS error.* fields:
 //
 //   - error.message: always (err.Error())
 //   - error.type:    always (fmt.Sprintf("%T", err))
@@ -56,35 +58,122 @@ type stackTracerPCs interface {
 //     1. interface{ StackTrace() []byte }                  (samber/oops)
 //     2. interface{ StackTrace() pkgerrors.StackTrace }    (github.com/pkg/errors)
 //
-// Err is the only multi-field constructor in the library, provided so callers
-// do not need any specific zap encoder (e.g. ecszap) to obtain a stack trace.
-// Returns nil if err is nil so the caller can splat it unconditionally.
-func Err(err error) []zapcore.Field {
+// Typed-nil errors (a non-nil interface holding a nil pointer, e.g.
+// (*MyErr)(nil) cast to error) are handled safely: error.type is emitted,
+// error.message = "<nil>", and Error() is never called on the nil receiver.
+//
+// Returns zap.Skip() if err is nil so the caller can pass the result
+// unconditionally:
+//
+//	logger.Error("operation failed",
+//	    ServiceName("auth-api"),
+//	    EventAction("user.login"),
+//	    Err(err),
+//	)
+//
+// The output JSON is flat dotted ECS keys (error.message, error.type,
+// error.stack_trace) — identical to manually composing single-field helpers,
+// but as one Field so it composes naturally with sibling fields.
+func Err(err error) zapcore.Field {
 	if err == nil {
+		return zap.Skip()
+	}
+	return zap.Inline(errMarshaler{err: err})
+}
+
+// ErrAny returns a single inline zap.Field that emits ECS error.* fields from
+// any value, intended for cases where the input is not statically typed as
+// error — most commonly the result of recover() during panic handling.
+// Behavior by input type:
+//
+//   - nil:             returns zap.Skip() (no fields emitted)
+//   - typed-nil error: error.type emitted, error.message = "<nil>" — never
+//     calls Error() on the typed-nil receiver, which would panic
+//   - error:           same fields as Err(err), including error.stack_trace
+//     when the error implements either StackTrace() []byte (samber/oops) or
+//     StackTrace() pkgerrors.StackTrace (github.com/pkg/errors)
+//   - other:           error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
+//
+// ErrAny intentionally does not call runtime/debug.Stack() itself. To attach
+// the panic stack, pass it explicitly — callers may want to skip the cost or
+// use a different stack source.
+//
+// Typical panic recovery:
+//
+//	defer func() {
+//	    if r := recover(); r != nil {
+//	        logger.Error("panic recovered",
+//	            ErrAny(r),
+//	            ErrorStackTrace(debug.Stack()),
+//	        )
+//	    }
+//	}()
+func ErrAny(v any) zapcore.Field {
+	if v == nil {
+		return zap.Skip()
+	}
+	return zap.Inline(errAnyMarshaler{v: v})
+}
+
+// errMarshaler renders an error into ECS error.* keys at the encoder's
+// current namespace (no nesting). Used by Err via zap.Inline.
+//
+// Guards against typed-nil errors (non-nil interface holding a nil pointer)
+// by checking before calling Error() — that call would otherwise panic on
+// the nil receiver.
+type errMarshaler struct{ err error }
+
+func (m errMarshaler) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	if isTypedNil(m.err) {
+		enc.AddString("error.message", "<nil>")
+		enc.AddString("error.type", fmt.Sprintf("%T", m.err))
 		return nil
 	}
-	fields := []zapcore.Field{
-		ErrorMessage(err.Error()),
-		ErrorType(fmt.Sprintf("%T", err)),
+	enc.AddString("error.message", m.err.Error())
+	enc.AddString("error.type", fmt.Sprintf("%T", m.err))
+	if stack := extractStackTrace(m.err); len(stack) > 0 {
+		enc.AddByteString("error.stack_trace", stack)
 	}
-	if stack := extractStackTrace(err); len(stack) > 0 {
-		fields = append(fields, ErrorStackTrace(stack))
+	return nil
+}
+
+// errAnyMarshaler renders any value into ECS error.* keys, routing error
+// values through errMarshaler (which handles typed-nil) and falling back to
+// fmt.Sprint / fmt.Sprintf("%T") for non-error values. Used by ErrAny via
+// zap.Inline.
+type errAnyMarshaler struct{ v any }
+
+func (m errAnyMarshaler) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	if err, ok := m.v.(error); ok {
+		return errMarshaler{err: err}.MarshalLogObject(enc)
 	}
-	return fields
+	enc.AddString("error.message", fmt.Sprint(m.v))
+	enc.AddString("error.type", fmt.Sprintf("%T", m.v))
+	return nil
 }
 
 // extractStackTrace walks the error chain and returns the first stack trace
 // found, in []byte form ready for ErrorStackTrace. Returns nil if no error in
 // the chain carries a stack trace.
+//
+// Each errors.As match is guarded against typed-nil: if the matched value is
+// a non-nil interface holding a nil concrete value, calling StackTrace() on
+// it would panic on the nil receiver, so we treat that match as "no stack".
+//
+// Limitation: if the error chain contains a typed-nil stack-bearing error in
+// front of a real stack-bearing error, only the first match is considered —
+// errors.As stops there and we treat it as "no stack" rather than risk
+// further traversal past a typed-nil. In practice typed-nil errors appear at
+// the leaf, so this is rarely observable.
 func extractStackTrace(err error) []byte {
 	var bytesST stackTracerBytes
-	if errors.As(err, &bytesST) {
+	if errors.As(err, &bytesST) && !isTypedNil(bytesST) {
 		if s := bytesST.StackTrace(); len(s) > 0 {
 			return s
 		}
 	}
 	var pcsST stackTracerPCs
-	if errors.As(err, &pcsST) {
+	if errors.As(err, &pcsST) && !isTypedNil(pcsST) {
 		if s := pcsST.StackTrace(); len(s) > 0 {
 			// pkg/errors.StackTrace implements fmt.Formatter; %+v renders each
 			// frame as "function\n\tfile:line", matching what users expect to
@@ -93,50 +182,6 @@ func extractStackTrace(err error) []byte {
 		}
 	}
 	return nil
-}
-
-// ErrAny extracts ECS error.* fields from any value, intended for cases where
-// the input is not statically typed as error — most commonly the result of
-// recover() during panic handling. Behavior by input type:
-//
-//   - nil:             returns nil (no fields)
-//   - typed-nil error: error.type emitted, error.message = "<nil>" — never
-//     calls Error() on the typed-nil receiver, which would panic
-//   - error:           delegates to Err(err) — error.stack_trace included if
-//     the error implements either StackTrace() []byte (samber/oops) or
-//     StackTrace() pkgerrors.StackTrace (github.com/pkg/errors)
-//   - other:           error.message = fmt.Sprint(v); error.type = fmt.Sprintf("%T", v)
-//
-// ErrAny intentionally does not call runtime/debug.Stack() itself. To attach
-// the panic stack, append ErrorStackTrace(debug.Stack()) at the call site —
-// callers may want to skip the cost or use a different stack source.
-//
-// Typical panic recovery:
-//
-//	defer func() {
-//	    if r := recover(); r != nil {
-//	        fields := ErrAny(r)
-//	        fields = append(fields, ErrorStackTrace(debug.Stack()))
-//	        logger.Error("panic recovered", fields...)
-//	    }
-//	}()
-func ErrAny(v any) []zapcore.Field {
-	if v == nil {
-		return nil
-	}
-	if err, ok := v.(error); ok {
-		if isTypedNil(err) {
-			return []zapcore.Field{
-				ErrorMessage("<nil>"),
-				ErrorType(fmt.Sprintf("%T", err)),
-			}
-		}
-		return Err(err)
-	}
-	return []zapcore.Field{
-		ErrorMessage(fmt.Sprint(v)),
-		ErrorType(fmt.Sprintf("%T", v)),
-	}
 }
 
 // isTypedNil reports whether v is non-nil at the interface level but holds a

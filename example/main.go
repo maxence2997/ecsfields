@@ -55,8 +55,9 @@ func main() {
 
 		ecsf.Label("tenant", "acme"),
 		ecsf.Tags("login", "audit"),
+
+		ecsf.Err(err),
 	}
-	fields = append(fields, ecsf.Err(err)...)
 
 	logger.Info("login attempt failed", fields...)
 }
